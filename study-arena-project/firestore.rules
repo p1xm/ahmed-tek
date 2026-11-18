@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn(){ return request.auth != null; }
+    function isSelf(uid){ return signedIn() && request.auth.uid == uid; }
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create, update: if isSelf(uid)
+        && !('uniqueId' in request.resource.data.diff(resource.data).affectedKeys());
+      allow delete: if false;
+    }
+    match /friendRequests/{id} {
+      allow read: if signedIn() && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
+      allow create: if signedIn() && request.resource.data.from == request.auth.uid;
+      allow update: if signedIn() && resource.data.to == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+      allow delete: if false;
+    }
+    match /matches/{id} {
+      allow read: if signedIn() && request.auth.uid in resource.data.players;
+      allow create, update, delete: if false;
+    }
+    match /notifications/{id} {
+      allow read, update: if signedIn() && resource.data.userId == request.auth.uid;
+      allow create, delete: if false;
+    }
+    match /privateMatchData/{id} {
+      allow read, write: if false;
+    }
+  }
+}
